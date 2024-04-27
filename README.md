@@ -6,6 +6,9 @@ It uses Spring Cloud Kubernetes to get information about its scaling and endpoin
 # Getting started
 
 Install Docker
+
 Install Tilt: https://docs.tilt.dev/install.html
+
 Run the command "tilt up"
+
 Try "http://localhost:8080/_hydra/health"
