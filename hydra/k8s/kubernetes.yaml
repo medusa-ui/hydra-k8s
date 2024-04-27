@@ -1,7 +1,51 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hydra-proxy
+
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hydra-proxy-sa
+  namespace: hydra-proxy
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: hydra-proxy-role
+rules:
+  - apiGroups: [""]
+    resources: [ "*" ]
+    verbs: [ "*" ]
+    #resources: ["pods"]
+    #verbs: ["get", "list"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: hydra-proxy-role-binding
+subjects:
+  - kind: ServiceAccount
+    name: hydra-proxy-sa
+    namespace: hydra-proxy
+roleRef:
+  kind: ClusterRole
+  name: hydra-proxy-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: hydra-proxy
+  namespace: hydra-proxy
   labels:
     app: hydra-proxy
 spec:
@@ -16,6 +60,7 @@ spec:
       labels:
         app: hydra-proxy
     spec:
+      serviceAccountName: hydra-proxy-sa
       hostNetwork: false
       terminationGracePeriodSeconds: 100
       containers:
