@@ -16,7 +16,7 @@ class DynamicRouteProviderTest {
     @Autowired
     private DynamicRouteProvider dynamicRouteProvider;
 
-    private final ClientNode clientNode = new ClientNode("TestNode", "localhost:8080", Collections.singleton(new ClientRoute("/test", "GET")));
+    private final ClientNode clientNode = new ClientNode("TestNode", "localhost:8080", null, Collections.singleton(new ClientRoute("/test", "GET")));
 
     @BeforeEach
     void clear() {
@@ -52,7 +52,7 @@ class DynamicRouteProviderTest {
 
     @Test
     void testConcurrentModificationsToRegisteredNodes() {
-        ClientNode newNode = new ClientNode("NewNode", "localhost:8081", Collections.singleton(new ClientRoute("/new", "POST")));
+        ClientNode newNode = new ClientNode("NewNode", "localhost:8081", null, Collections.singleton(new ClientRoute("/new", "POST")));
 
         dynamicRouteProvider.register(clientNode);
         dynamicRouteProvider.reload();

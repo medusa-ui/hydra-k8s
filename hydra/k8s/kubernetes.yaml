@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hydra-proxy
+  labels:
+    app: hydra-proxy
+spec:
+  revisionHistoryLimit: 5
+  replicas: 2
+  progressDeadlineSeconds: 600
+  selector:
+    matchLabels:
+      app: hydra-proxy
+  template:
+    metadata:
+      labels:
+        app: hydra-proxy
+    spec:
+      hostNetwork: false
+      terminationGracePeriodSeconds: 100
+      containers:
+        - name: hydra-proxy
+          image: hydra-proxy
+          ports:
+            - containerPort: 9988
+          readinessProbe:
+            httpGet:
+              path: /_hydra/health
+              port: 9988
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /_hydra/health
+              port: 9988
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+      securityContext:
+        runAsNonRoot: true
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - hydra-proxy
+                topologyKey: kubernetes.io/hostname

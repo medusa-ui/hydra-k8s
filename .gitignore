@@ -33,3 +33,7 @@ config-mariadb.json
 *.versionsBackup
 **/.DS_Store
 .DS_Store
+**.jar
+*/.mvn/*
+*/mvnw
+*/mvnw.cmd
