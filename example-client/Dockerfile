@@ -16,4 +16,4 @@ RUN chown -R 666:666 /app
 USER 666
 
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "example-client.jar"]
+ENTRYPOINT ["java", "-Xmx100m", "-jar", "example-client.jar"]

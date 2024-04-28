@@ -16,4 +16,4 @@ RUN chown -R 666:666 /app
 USER 666
 
 EXPOSE 9988
-ENTRYPOINT ["java", "-jar", "hydra-proxy.jar"]
+ENTRYPOINT ["java", "-Xmx256m", "-jar", "hydra-proxy.jar"]
