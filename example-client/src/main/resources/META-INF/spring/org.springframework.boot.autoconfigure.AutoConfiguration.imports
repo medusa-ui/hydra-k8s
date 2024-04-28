@@ -1,1 +1,2 @@
 io.getmedusa.hydra.boot.RegistrationStarter
+io.getmedusa.hydra.boot.KubernetesService
