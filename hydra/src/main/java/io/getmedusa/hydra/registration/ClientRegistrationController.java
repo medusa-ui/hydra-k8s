@@ -2,6 +2,8 @@ package io.getmedusa.hydra.registration;
 
 import io.getmedusa.hydra.registration.model.ClientNode;
 import io.getmedusa.hydra.routing.DynamicRouteProvider;
+import io.getmedusa.hydra.security.InternalCallsOnly;
+import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -22,17 +24,18 @@ public class ClientRegistrationController {
     }
 
     @PostMapping("/register")
-    public Map<String, String> registerClient(@RequestBody ClientNode clientNode) {
+    public Map<String, String> registerClient(ServerHttpRequest request, @RequestBody ClientNode clientNode) {
+        InternalCallsOnly.ensure(request);
         dynamicRouteProvider.register(clientNode);
         dynamicRouteProvider.reload();
         return Map.of("status", "ok");
     }
 
     @PostMapping("/deregister")
-    public Map<String, String> deregisterClient(@RequestBody ClientNode clientNode) {
+    public Map<String, String> deregisterClient(ServerHttpRequest request, @RequestBody ClientNode clientNode) {
+        InternalCallsOnly.ensure(request);
         dynamicRouteProvider.deregister(clientNode);
         dynamicRouteProvider.reload();
         return Map.of("status", "ok");
     }
-
 }

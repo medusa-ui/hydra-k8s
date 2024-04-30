@@ -7,12 +7,11 @@ import io.getmedusa.hydra.model.ClientRoute;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.EcPublicJwk;
 import io.jsonwebtoken.security.Jwks;
-import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.ApplicationListener;
-import org.springframework.context.event.ContextRefreshedEvent;
+import org.springframework.context.annotation.DependsOn;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.client.HttpClientErrorException;
@@ -22,6 +21,7 @@ import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
+import javax.annotation.PreDestroy;
 import java.net.InetAddress;
 import java.security.KeyPair;
 import java.security.PrivateKey;
@@ -37,68 +37,92 @@ By default, the location to register would be http://localhost:9988/register.
 Keep in mind that the property could be ending in a / or without one, either should work
  */
 @Component
-public class RegistrationStarter implements ApplicationListener<ContextRefreshedEvent> {
+@DependsOn("kubernetesService")
+public class RegistrationStarter {
 
-    @Value("${hydra.location:none}")
-    private String hydraLocationProperty;
+    private final KubernetesService kubernetesService;
 
     @Value("${spring.application.name:}")
     private String appName;
 
     @Value("${hydra.client.port:${server.port:8080}}")
-    private Integer serverPort;
+    private Integer availableAtPort;
+
+    private static boolean isRegistered = false;
 
     private final RequestMappingHandlerMapping handlerMapping;
 
-    public RegistrationStarter(RequestMappingHandlerMapping handlerMapping) {
+    public RegistrationStarter(RequestMappingHandlerMapping handlerMapping, KubernetesService kubernetesService) {
         this.handlerMapping = handlerMapping;
+        this.kubernetesService = kubernetesService;
     }
 
     static final KeyPair keyPair = Jwts.SIG.ES256.keyPair().build();
 
-    @Override public void onApplicationEvent(ContextRefreshedEvent event) {
-        System.out.println("Registering at : " + hydraLocationProperty);
-        if(!"none".equals(hydraLocationProperty)) {
-            final RestClient restClient = RestClient.create();
-
-            String hydraLocUrl = buildRegistrationUrl();
+    private void registerAtHydra() {
+        Set<String> ips = kubernetesService.getIPs();
+        for(String ip : ips) {
             ClientNode self = buildClientNode();
+            String hydraLocUrl = buildRegistrationUrl(ip);
+            applyToHydra(hydraLocUrl, self);
+        }
+    }
 
-            //TODO keep retrying if this fails or when you lose connection
-            try {
-                ResponseEntity<String> response = restClient.post()
-                        .uri(hydraLocUrl)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(self)
-                        .retrieve()
-                        .toEntity(String.class);
-                System.out.println(response);
-            } catch (HttpClientErrorException | HttpServerErrorException e) {
-                //just retry
+    @Scheduled(fixedDelay = 5000, initialDelay = 1000)
+    public void healthCheckWithHydra() {
+        if(isRegistered) {
+            System.out.println("health check to hydra - still alive!");
+        } else {
+            registerAtHydra();
+        }
+    }
+
+    private static void applyToHydra(final String url, final ClientNode self) {
+        applyToHydra(url, self, 0);
+    }
+
+    private static void applyToHydra(final String url, final ClientNode self, int retryAttempts) {
+        if (retryAttempts > 3) { return; }
+        try {
+            final RestClient restClient = RestClient.create();
+            ResponseEntity<String> response = restClient.post()
+                    .uri(url)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(self)
+                    .retrieve()
+                    .toEntity(String.class);
+            if(!response.getStatusCode().is2xxSuccessful()) {
+                throw new HttpClientErrorException(response.getStatusCode());
+            } else {
+                isRegistered = true;
+                System.out.println("Registered w/ Hydra at " + url);
             }
+        } catch (HttpClientErrorException | HttpServerErrorException e) {
+            exponentialBackoff(retryAttempts);
+            applyToHydra(url, self, retryAttempts + 1);
+        }
+    }
+
+    private static void exponentialBackoff(int retryAttempts) {
+        long backoffTime = Math.min((long) Math.pow(2, retryAttempts), 10);
+        System.out.println("Retrying in " + backoffTime + " seconds...");
+
+        try {
+            Thread.sleep(backoffTime * 1000); // Convert seconds to milliseconds
+        } catch (InterruptedException interruptedException) {
+            Thread.currentThread().interrupt();
+            System.err.println("Thread interrupted while sleeping.");
         }
     }
 
     @PreDestroy
     public void deregisterGracefully() {
-        if(!"none".equals(hydraLocationProperty)) {
-            final RestClient restClient = RestClient.create();
-
-            String hydraLocUrl = buildDeregistrationUrl();
-            ClientNode self = buildClientNode();
-
-            try {
-                ResponseEntity<String> response = restClient.post()
-                        .uri(hydraLocUrl)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(self)
-                        .retrieve()
-                        .toEntity(String.class);
-                System.out.println(response);
-            } catch (HttpClientErrorException | HttpServerErrorException e) {
-                //just retry
-            }
-        }
+        //isActive = false;
+        //if(!"none".equals(hydraLocationProperty)) {
+            //String hydraLocUrl = buildDeregistrationUrl("");
+            //ClientNode self = buildClientNode();
+           // applyToHydra(hydraLocationProperty, self);
+        //}
     }
 
     private ClientNode buildClientNode() {
@@ -120,7 +144,7 @@ public class RegistrationStarter implements ApplicationListener<ContextRefreshed
 
     private String getCurrentIP() {
         try {
-            return InetAddress.getLocalHost().getHostAddress() + ":" + serverPort;
+            return InetAddress.getLocalHost().getHostAddress() + ":" + availableAtPort;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -142,12 +166,12 @@ public class RegistrationStarter implements ApplicationListener<ContextRefreshed
         return routes;
     }
 
-    private String buildRegistrationUrl() {
-        return (hydraLocationProperty + "/register").replace("//register", "/register");
+    private String buildRegistrationUrl(String ip) {
+        return ("http://" + ip + "/register").replace("//register", "/register");
     }
 
-    private String buildDeregistrationUrl() {
-        return (hydraLocationProperty + "/deregister").replace("//deregister", "/deregister");
+    private String buildDeregistrationUrl(String ip) {
+        return ("http://" + ip + "/deregister").replace("//deregister", "/deregister");
     }
 
     static PublicKey getPublicKey() {

@@ -66,6 +66,10 @@ spec:
       containers:
         - name: hydra-proxy
           image: hydra-proxy
+          resources:
+            limits:
+              cpu: "0.5"
+              memory: "300Mi"
           ports:
             - containerPort: 9988
           readinessProbe:

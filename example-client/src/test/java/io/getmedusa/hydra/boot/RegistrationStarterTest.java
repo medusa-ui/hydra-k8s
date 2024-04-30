@@ -11,7 +11,7 @@ import java.security.PublicKey;
 
 class RegistrationStarterTest {
 
-    private final RegistrationStarter service = new RegistrationStarter(Mockito.mock(RequestMappingHandlerMapping.class));
+    private final RegistrationStarter service = new RegistrationStarter(Mockito.mock(RequestMappingHandlerMapping.class), Mockito.mock(KubernetesService.class));
 
     @Test
     void testPublicKeyToString() {

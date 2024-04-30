@@ -66,6 +66,10 @@ spec:
       containers:
         - name: example-client
           image: example-client
+          resources:
+            limits:
+              cpu: "0.5"
+              memory: "200Mi"
           ports:
             - containerPort: 8080
           readinessProbe:
